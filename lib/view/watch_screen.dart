@@ -1,26 +1,28 @@
+import 'package:ap_news/controller/live_video_controller.dart';
+import 'package:ap_news/model/Recent_video.dart';
 import 'package:flutter/material.dart';
 
-class WatchScreen extends StatelessWidget {
+class WatchScreen extends StatefulWidget {
   const WatchScreen({super.key});
 
-  static const List<_RecentVideoItem> _recentVideos = [
-    _RecentVideoItem(
-      title: 'Beldaur case update: one more accused arrested in raid',
-      date: 'Nov 19, 2019',
-    ),
-    _RecentVideoItem(
-      title: 'AISF statewide protest march reaches district headquarters',
-      date: 'Nov 6, 2019',
-    ),
-    _RecentVideoItem(
-      title: 'Sikar bank loot card update: latest investigation details',
-      date: 'Nov 6, 2019',
-    ),
-    _RecentVideoItem(
-      title: 'Ground report: flood impact and relief camp coverage',
-      date: 'Oct 29, 2019',
-    ),
-  ];
+  @override
+  State<WatchScreen> createState() => _WatchScreenState();
+}
+
+class _WatchScreenState extends State<WatchScreen> {
+  late Future<PlaylistResponse> _recentVideosFuture;
+
+  @override
+  void initState() {
+    super.initState();
+    _recentVideosFuture = LiveVideoController.fetchRecentVideos();
+  }
+
+  void _retryFetch() {
+    setState(() {
+      _recentVideosFuture = LiveVideoController.fetchRecentVideos();
+    });
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -43,16 +45,54 @@ class WatchScreen extends StatelessWidget {
       ),
       body: SafeArea(
         top: false,
-        child: SingleChildScrollView(
-          padding: const EdgeInsets.fromLTRB(16, 14, 16, 24),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              const _LiveVideoCard(),
-              const SizedBox(height: 18),
-              _RecentVideosSection(items: _recentVideos),
-            ],
-          ),
+        child: FutureBuilder<PlaylistResponse>(
+          future: _recentVideosFuture,
+          builder: (context, snapshot) {
+            if (snapshot.connectionState == ConnectionState.waiting) {
+              return const Center(child: CircularProgressIndicator());
+            }
+
+            if (snapshot.hasError) {
+              return Center(
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 20),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      const Text(
+                        'Failed to load videos',
+                        style: TextStyle(
+                          fontSize: 18,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                      const SizedBox(height: 12),
+                      ElevatedButton.icon(
+                        onPressed: _retryFetch,
+                        icon: const Icon(Icons.refresh),
+                        label: const Text('Retry'),
+                      ),
+                    ],
+                  ),
+                ),
+              );
+            }
+
+            final items = snapshot.data?.items ?? <PlaylistItem>[];
+            final liveItem = items.isNotEmpty ? items.first : null;
+
+            return SingleChildScrollView(
+              padding: const EdgeInsets.fromLTRB(16, 14, 16, 24),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  _LiveVideoCard(item: liveItem),
+                  const SizedBox(height: 18),
+                  _RecentVideosSection(items: items),
+                ],
+              ),
+            );
+          },
         ),
       ),
     );
@@ -60,10 +100,39 @@ class WatchScreen extends StatelessWidget {
 }
 
 class _LiveVideoCard extends StatelessWidget {
-  const _LiveVideoCard();
+  const _LiveVideoCard({required this.item});
+
+  final PlaylistItem? item;
+
+  String _title() {
+    final raw = item?.snippet?.title?.trim();
+    if (raw == null || raw.isEmpty) {
+      return 'Latest AP News Video';
+    }
+    return raw;
+  }
+
+  String _channel() {
+    final raw = item?.snippet?.channelTitle?.trim();
+    if (raw == null || raw.isEmpty) {
+      return 'AP NEWS BIHAR';
+    }
+    return raw;
+  }
+
+  String? _thumbnail() {
+    final thumbs = item?.snippet?.thumbnails;
+    return thumbs?.maxres?.url ??
+        thumbs?.standard?.url ??
+        thumbs?.high?.url ??
+        thumbs?.medium?.url ??
+        thumbs?.defaultThumb?.url;
+  }
 
   @override
   Widget build(BuildContext context) {
+    final thumbUrl = _thumbnail();
+
     return Container(
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(16),
@@ -82,12 +151,22 @@ class _LiveVideoCard extends StatelessWidget {
           child: Stack(
             fit: StackFit.expand,
             children: [
-              Container(
-                decoration: const BoxDecoration(
-                  gradient: LinearGradient(
-                    begin: Alignment.topCenter,
-                    end: Alignment.bottomCenter,
-                    colors: [Color(0xFF49535F), Color(0xFF1F252B)],
+              if (thumbUrl != null)
+                Image.network(
+                  thumbUrl,
+                  fit: BoxFit.cover,
+                  errorBuilder: (_, __, ___) => _fallbackBanner(),
+                )
+              else
+                _fallbackBanner(),
+              const Positioned.fill(
+                child: DecoratedBox(
+                  decoration: BoxDecoration(
+                    gradient: LinearGradient(
+                      begin: Alignment.topCenter,
+                      end: Alignment.bottomCenter,
+                      colors: [Color(0x20000000), Color(0xA0000000)],
+                    ),
                   ),
                 ),
               ),
@@ -101,11 +180,11 @@ class _LiveVideoCard extends StatelessWidget {
                     horizontal: 12,
                     vertical: 8,
                   ),
-                  child: const Text(
-                    'Beldaur Golikand: Ek Aur Abhiyukt Girftar',
+                  child: Text(
+                    _title(),
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
-                    style: TextStyle(
+                    style: const TextStyle(
                       color: Colors.white,
                       fontWeight: FontWeight.w700,
                       fontSize: 15,
@@ -154,11 +233,11 @@ class _LiveVideoCard extends StatelessWidget {
                     horizontal: 12,
                     vertical: 10,
                   ),
-                  child: const Text(
-                    'AP NEWS BIHAR - Pehli Khabar Aap Tak',
+                  child: Text(
+                    _channel(),
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
-                    style: TextStyle(
+                    style: const TextStyle(
                       color: Colors.white,
                       fontWeight: FontWeight.w700,
                       fontSize: 14,
@@ -172,12 +251,24 @@ class _LiveVideoCard extends StatelessWidget {
       ),
     );
   }
+
+  Widget _fallbackBanner() {
+    return Container(
+      decoration: const BoxDecoration(
+        gradient: LinearGradient(
+          begin: Alignment.topCenter,
+          end: Alignment.bottomCenter,
+          colors: [Color(0xFF49535F), Color(0xFF1F252B)],
+        ),
+      ),
+    );
+  }
 }
 
 class _RecentVideosSection extends StatelessWidget {
   const _RecentVideosSection({required this.items});
 
-  final List<_RecentVideoItem> items;
+  final List<PlaylistItem> items;
 
   @override
   Widget build(BuildContext context) {
@@ -229,15 +320,28 @@ class _RecentVideosSection extends StatelessWidget {
             const SizedBox(height: 12),
             const Divider(height: 1),
             const SizedBox(height: 4),
-            ListView.separated(
-              shrinkWrap: true,
-              physics: const NeverScrollableScrollPhysics(),
-              itemCount: items.length,
-              separatorBuilder: (_, __) => const SizedBox(height: 10),
-              itemBuilder: (context, index) {
-                return _RecentVideoRow(item: items[index], index: index);
-              },
-            ),
+            if (items.isEmpty)
+              const Padding(
+                padding: EdgeInsets.symmetric(vertical: 16),
+                child: Text(
+                  'No recent videos found.',
+                  style: TextStyle(
+                    color: Color(0xFF6B7280),
+                    fontSize: 15,
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
+              )
+            else
+              ListView.separated(
+                shrinkWrap: true,
+                physics: const NeverScrollableScrollPhysics(),
+                itemCount: items.length,
+                separatorBuilder: (_, __) => const SizedBox(height: 10),
+                itemBuilder: (context, index) {
+                  return _RecentVideoRow(item: items[index], index: index);
+                },
+              ),
             const SizedBox(height: 14),
             SizedBox(
               width: double.infinity,
@@ -269,8 +373,47 @@ class _RecentVideosSection extends StatelessWidget {
 class _RecentVideoRow extends StatelessWidget {
   const _RecentVideoRow({required this.item, required this.index});
 
-  final _RecentVideoItem item;
+  final PlaylistItem item;
   final int index;
+
+  String? _thumbnail() {
+    final thumbs = item.snippet?.thumbnails;
+    return thumbs?.high?.url ??
+        thumbs?.medium?.url ??
+        thumbs?.defaultThumb?.url ??
+        thumbs?.standard?.url ??
+        thumbs?.maxres?.url;
+  }
+
+  String _title() {
+    final raw = item.snippet?.title?.trim();
+    if (raw == null || raw.isEmpty) return 'Untitled video';
+    return raw;
+  }
+
+  String _publishedDate() {
+    final value = item.snippet?.publishedAt;
+    if (value == null || value.isEmpty) return 'Unknown date';
+
+    final parsed = DateTime.tryParse(value);
+    if (parsed == null) return 'Unknown date';
+
+    const months = [
+      'Jan',
+      'Feb',
+      'Mar',
+      'Apr',
+      'May',
+      'Jun',
+      'Jul',
+      'Aug',
+      'Sep',
+      'Oct',
+      'Nov',
+      'Dec',
+    ];
+    return '${months[parsed.month - 1]} ${parsed.day}, ${parsed.year}';
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -280,6 +423,7 @@ class _RecentVideoRow extends StatelessWidget {
       const Color(0xFF2C5A40),
       const Color(0xFF6C4A20),
     ];
+    final thumbUrl = _thumbnail();
 
     return Container(
       padding: const EdgeInsets.all(10),
@@ -293,26 +437,52 @@ class _RecentVideoRow extends StatelessWidget {
         children: [
           ClipRRect(
             borderRadius: BorderRadius.circular(8),
-            child: Container(
+            child: SizedBox(
               width: 130,
               height: 74,
-              decoration: BoxDecoration(
-                gradient: LinearGradient(
-                  begin: Alignment.topLeft,
-                  end: Alignment.bottomRight,
-                  colors: [
-                    colors[index % colors.length],
-                    const Color(0xFF1E1E1E),
-                  ],
-                ),
-              ),
-              child: const Center(
-                child: Icon(
-                  Icons.play_circle_fill_rounded,
-                  color: Colors.white,
-                  size: 34,
-                ),
-              ),
+              child: thumbUrl == null
+                  ? Container(
+                      decoration: BoxDecoration(
+                        gradient: LinearGradient(
+                          begin: Alignment.topLeft,
+                          end: Alignment.bottomRight,
+                          colors: [
+                            colors[index % colors.length],
+                            const Color(0xFF1E1E1E),
+                          ],
+                        ),
+                      ),
+                      child: const Center(
+                        child: Icon(
+                          Icons.play_circle_fill_rounded,
+                          color: Colors.white,
+                          size: 34,
+                        ),
+                      ),
+                    )
+                  : Image.network(
+                      thumbUrl,
+                      fit: BoxFit.cover,
+                      errorBuilder: (_, __, ___) => Container(
+                        decoration: BoxDecoration(
+                          gradient: LinearGradient(
+                            begin: Alignment.topLeft,
+                            end: Alignment.bottomRight,
+                            colors: [
+                              colors[index % colors.length],
+                              const Color(0xFF1E1E1E),
+                            ],
+                          ),
+                        ),
+                        child: const Center(
+                          child: Icon(
+                            Icons.play_circle_fill_rounded,
+                            color: Colors.white,
+                            size: 34,
+                          ),
+                        ),
+                      ),
+                    ),
             ),
           ),
           const SizedBox(width: 12),
@@ -321,7 +491,7 @@ class _RecentVideoRow extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  item.title,
+                  _title(),
                   maxLines: 2,
                   overflow: TextOverflow.ellipsis,
                   style: const TextStyle(
@@ -333,7 +503,7 @@ class _RecentVideoRow extends StatelessWidget {
                 ),
                 const SizedBox(height: 8),
                 Text(
-                  item.date,
+                  _publishedDate(),
                   style: const TextStyle(
                     color: Color(0xFF6B7280),
                     fontSize: 14,
@@ -347,11 +517,4 @@ class _RecentVideoRow extends StatelessWidget {
       ),
     );
   }
-}
-
-class _RecentVideoItem {
-  const _RecentVideoItem({required this.title, required this.date});
-
-  final String title;
-  final String date;
 }
