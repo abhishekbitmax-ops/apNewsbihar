@@ -23,6 +23,7 @@ class _ReadScreenState extends State<ReadScreen> {
   final ScrollController _contentScrollController = ScrollController();
   late Future<VideoApiResponse> _liveVideoFuture;
   late Future<NewsResponse> _trendingNewsFuture;
+  late Future<PlaylistResponse> _recentVideosFuture;
   final Map<int, Future<ArticlesResponse>> _categoryArticlesFutures = {};
 
   static const List<String> _categories = [
@@ -39,6 +40,7 @@ class _ReadScreenState extends State<ReadScreen> {
     super.initState();
     _liveVideoFuture = LiveVideoController.fetchYoutubeLive();
     _trendingNewsFuture = LiveVideoController.fetchTrendingNews();
+    _recentVideosFuture = LiveVideoController.fetchRecentVideos();
   }
 
   void _retryLiveVideo() {
@@ -50,6 +52,12 @@ class _ReadScreenState extends State<ReadScreen> {
   void _retryTrendingNews() {
     setState(() {
       _trendingNewsFuture = LiveVideoController.fetchTrendingNews();
+    });
+  }
+
+  void _retryRecentVideos() {
+    setState(() {
+      _recentVideosFuture = LiveVideoController.fetchRecentVideos();
     });
   }
 
@@ -106,6 +114,8 @@ class _ReadScreenState extends State<ReadScreen> {
         onRetry: _retryLiveVideo,
         trendingNewsFuture: _trendingNewsFuture,
         onTrendingRetry: _retryTrendingNews,
+        recentVideosFuture: _recentVideosFuture,
+        onRecentVideosRetry: _retryRecentVideos,
       );
     }
 
@@ -150,9 +160,7 @@ class _ReadScreenState extends State<ReadScreen> {
                   },
                   onProfileTap: () {
                     Navigator.of(context).push(
-                      MaterialPageRoute(
-                        builder: (_) => const ProfileScreen(),
-                      ),
+                      MaterialPageRoute(builder: (_) => const ProfileScreen()),
                     );
                   },
                 ),
@@ -362,18 +370,27 @@ class _HomeTabContent extends StatelessWidget {
     required this.onRetry,
     required this.trendingNewsFuture,
     required this.onTrendingRetry,
+    required this.recentVideosFuture,
+    required this.onRecentVideosRetry,
   });
 
   final Future<VideoApiResponse> liveVideoFuture;
   final VoidCallback onRetry;
   final Future<NewsResponse> trendingNewsFuture;
   final VoidCallback onTrendingRetry;
+  final Future<PlaylistResponse> recentVideosFuture;
+  final VoidCallback onRecentVideosRetry;
 
   @override
   Widget build(BuildContext context) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
+        const SizedBox(height: 18),
+        const Padding(
+          padding: EdgeInsets.symmetric(horizontal: 16),
+          child: _ElectionResultBanner(),
+        ),
         const SizedBox(height: 30),
         const Padding(
           padding: EdgeInsets.symmetric(horizontal: 16),
@@ -407,7 +424,10 @@ class _HomeTabContent extends StatelessWidget {
           onRetry: onTrendingRetry,
         ),
         const SizedBox(height: 18),
-        const _LatestContentSection(),
+        _LatestContentSection(
+          recentVideosFuture: recentVideosFuture,
+          onRetry: onRecentVideosRetry,
+        ),
         const SizedBox(height: 12),
         const SizedBox(height: 180),
       ],
@@ -709,8 +729,7 @@ class _CategoryNewsList extends StatelessWidget {
               const Divider(height: 1, color: Color(0xFFE6E6E6)),
           itemBuilder: (context, index) {
             final article = articles[index];
-            final title =
-                article.title?.en?.trim().isNotEmpty == true
+            final title = article.title?.en?.trim().isNotEmpty == true
                 ? article.title!.en!.trim()
                 : article.title?.hi?.trim().isNotEmpty == true
                 ? article.title!.hi!.trim()
@@ -946,7 +965,8 @@ class _LiveTvCardState extends State<_LiveTvCard> {
                 borderRadius: const BorderRadius.vertical(
                   top: Radius.circular(16),
                 ),
-                child: _showInlinePlayer &&
+                child:
+                    _showInlinePlayer &&
                         _inlineController != null &&
                         !isLoading &&
                         !hasError
@@ -1065,7 +1085,10 @@ class _LiveTvCardState extends State<_LiveTvCard> {
                       ),
               ),
               Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 16,
+                  vertical: 14,
+                ),
                 child: Row(
                   children: [
                     const CircleAvatar(
@@ -1278,59 +1301,200 @@ class _TrendingNewsRow extends StatelessWidget {
   }
 }
 
-class _LatestContentSection extends StatelessWidget {
-  const _LatestContentSection();
-
-  static const List<_LatestItem> _items = [
-    _LatestItem(
-      title: 'Latest Video: Election Ground Report And Live Updates',
-      label: 'Video',
-    ),
-    _LatestItem(
-      title: 'Breaking News: Market Opens Higher In Early Trade',
-      label: 'News',
-    ),
-    _LatestItem(
-      title: 'Sports Update: Team India Practice Session Highlights',
-      label: 'Video',
-    ),
-    _LatestItem(
-      title: 'Entertainment Buzz: New Film Trailer Out Now',
-      label: 'News',
-    ),
-  ];
+class _ElectionResultBanner extends StatelessWidget {
+  const _ElectionResultBanner();
 
   @override
   Widget build(BuildContext context) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        const Padding(
-          padding: EdgeInsets.symmetric(horizontal: 16),
-          child: Text(
-            'LATEST VIDEOS / NEWS',
-            style: TextStyle(
-              fontSize: 18,
-              fontWeight: FontWeight.w800,
-              letterSpacing: 0.2,
+    return Container(
+      width: double.infinity,
+      decoration: BoxDecoration(
+        color: const Color(0xFFF4EFF1),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: const Color(0xFFE7DADD)),
+      ),
+      padding: const EdgeInsets.fromLTRB(14, 12, 14, 12),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              const Expanded(
+                child: Text(
+                  'Election 2025',
+                  style: TextStyle(
+                    fontSize: 20,
+                    fontWeight: FontWeight.w800,
+                    color: Color(0xFFAA000D),
+                    letterSpacing: -0.1,
+                  ),
+                ),
+              ),
+              Container(
+                width: 22,
+                height: 22,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  color: const Color(0xFFEB0016),
+                  border: Border.all(
+                    color: const Color(0xFFF9B4BC),
+                    width: 2.5,
+                  ),
+                  boxShadow: const [
+                    BoxShadow(
+                      color: Color(0x2EEB0016),
+                      blurRadius: 6,
+                      offset: Offset(0, 1.5),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 10),
+          Container(
+            width: double.infinity,
+            alignment: Alignment.center,
+            decoration: BoxDecoration(
+              color: const Color(0xFFFFFFFF),
+              borderRadius: BorderRadius.circular(14),
+              border: Border.all(color: const Color(0xFFE9D8DB)),
+              boxShadow: const [
+                BoxShadow(
+                  color: Color(0x12000000),
+                  blurRadius: 6,
+                  offset: Offset(0, 1),
+                ),
+              ],
+            ),
+            padding: const EdgeInsets.symmetric(vertical: 10),
+            child: const Text(
+              'View Results',
+              style: TextStyle(
+                fontSize: 16,
+                fontWeight: FontWeight.w800,
+                color: Color(0xFFD00010),
+              ),
             ),
           ),
-        ),
-        const SizedBox(height: 12),
-        SizedBox(
-          height: 230,
-          child: ListView.separated(
-            scrollDirection: Axis.horizontal,
-            padding: const EdgeInsets.symmetric(horizontal: 16),
-            itemCount: _items.length,
-            separatorBuilder: (_, __) => const SizedBox(width: 12),
-            itemBuilder: (context, index) {
-              final item = _items[index];
-              return _LatestCard(item: item, index: index);
-            },
+        ],
+      ),
+    );
+  }
+}
+
+class _LatestContentSection extends StatelessWidget {
+  const _LatestContentSection({
+    required this.recentVideosFuture,
+    required this.onRetry,
+  });
+
+  final Future<PlaylistResponse> recentVideosFuture;
+  final VoidCallback onRetry;
+
+  @override
+  Widget build(BuildContext context) {
+    return FutureBuilder<PlaylistResponse>(
+      future: recentVideosFuture,
+      builder: (context, snapshot) {
+        if (snapshot.connectionState == ConnectionState.waiting) {
+          return const Padding(
+            padding: EdgeInsets.symmetric(vertical: 30),
+            child: Center(child: CircularProgressIndicator()),
+          );
+        }
+
+        if (snapshot.hasError) {
+          return Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+            child: Center(
+              child: ElevatedButton.icon(
+                onPressed: onRetry,
+                icon: const Icon(Icons.refresh),
+                label: const Text('Retry latest videos'),
+              ),
+            ),
+          );
+        }
+
+        final items = snapshot.data?.items ?? <PlaylistItem>[];
+        if (items.isEmpty) {
+          return const Padding(
+            padding: EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+            child: Text(
+              'No latest videos found.',
+              style: TextStyle(color: Color(0xFF6B7280), fontSize: 14),
+            ),
+          );
+        }
+
+        return Container(
+          margin: const EdgeInsets.symmetric(horizontal: 16),
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
+          decoration: BoxDecoration(
+            gradient: const LinearGradient(
+              colors: [Color(0xFF0F2041), Color(0xFF391553)],
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+            ),
+            borderRadius: BorderRadius.circular(20),
+            boxShadow: const [
+              BoxShadow(
+                color: Color(0x33000000),
+                blurRadius: 14,
+                offset: Offset(0, 8),
+              ),
+            ],
           ),
-        ),
-      ],
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Row(
+                children: [
+                  Icon(
+                    Icons.ondemand_video_rounded,
+                    color: Color(0xFFFFD54F),
+                    size: 22,
+                  ),
+                  SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      'LATEST VIDEOS / NEWS',
+                      style: TextStyle(
+                        fontSize: 18,
+                        fontWeight: FontWeight.w800,
+                        color: Colors.white,
+                        letterSpacing: 0.2,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 6),
+              const Text(
+                'Fresh updates from AP News YouTube feed',
+                style: TextStyle(
+                  color: Color(0xFFCAD5FF),
+                  fontSize: 12,
+                  fontWeight: FontWeight.w500,
+                ),
+              ),
+              const SizedBox(height: 14),
+              SizedBox(
+                height: 255,
+                child: ListView.separated(
+                  scrollDirection: Axis.horizontal,
+                  itemCount: items.length,
+                  separatorBuilder: (_, __) => const SizedBox(width: 12),
+                  itemBuilder: (context, index) {
+                    return _LatestCard(item: items[index], index: index);
+                  },
+                ),
+              ),
+            ],
+          ),
+        );
+      },
     );
   }
 }
@@ -1338,82 +1502,220 @@ class _LatestContentSection extends StatelessWidget {
 class _LatestCard extends StatelessWidget {
   const _LatestCard({required this.item, required this.index});
 
-  final _LatestItem item;
+  final PlaylistItem item;
   final int index;
+
+  String _resolveThumbUrl(PlaylistItem item) {
+    final thumbs = item.snippet?.thumbnails;
+    return thumbs?.maxres?.url ??
+        thumbs?.standard?.url ??
+        thumbs?.high?.url ??
+        thumbs?.medium?.url ??
+        thumbs?.defaultThumb?.url ??
+        '';
+  }
+
+  String _resolveVideoId(PlaylistItem item) {
+    return item.id?.videoId ?? item.snippet?.resourceId?.videoId ?? '';
+  }
+
+  String _resolveTitle(PlaylistItem item) {
+    final raw = item.snippet?.title?.trim();
+    if (raw != null && raw.isNotEmpty) {
+      return raw;
+    }
+    return 'Untitled video';
+  }
+
+  String _formatPublishDate(String? raw) {
+    if (raw == null || raw.trim().isEmpty) return 'Latest';
+    final parsed = DateTime.tryParse(raw);
+    if (parsed == null) return 'Latest';
+    const months = <String>[
+      'Jan',
+      'Feb',
+      'Mar',
+      'Apr',
+      'May',
+      'Jun',
+      'Jul',
+      'Aug',
+      'Sep',
+      'Oct',
+      'Nov',
+      'Dec',
+    ];
+    final local = parsed.toLocal();
+    return '${months[local.month - 1]} ${local.day}, ${local.year}';
+  }
 
   @override
   Widget build(BuildContext context) {
-    final thumbColors = [
-      const Color(0xFF235EA7),
-      const Color(0xFF8E2C2C),
-      const Color(0xFF2E6C4A),
-      const Color(0xFF6F4E24),
+    final gradients = [
+      const [Color(0xFF1E3A8A), Color(0xFF9333EA)],
+      const [Color(0xFFB91C1C), Color(0xFF7C2D12)],
+      const [Color(0xFF0F766E), Color(0xFF1D4ED8)],
+      const [Color(0xFF9A3412), Color(0xFF312E81)],
     ];
-    final color = thumbColors[index % thumbColors.length];
+    final palette = gradients[index % gradients.length];
+    final thumbUrl = _resolveThumbUrl(item);
+    final videoId = _resolveVideoId(item);
+    final title = _resolveTitle(item);
+    final publishedText = _formatPublishDate(item.snippet?.publishedAt);
 
     return SizedBox(
-      width: 250,
-      child: Card(
-        color: Colors.white,
-        elevation: 2,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
-        child: Padding(
-          padding: const EdgeInsets.all(10),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              ClipRRect(
-                borderRadius: BorderRadius.circular(10),
-                child: Container(
-                  height: 120,
-                  width: double.infinity,
-                  decoration: BoxDecoration(
-                    gradient: LinearGradient(
-                      colors: [color, const Color(0xFF1E1E1E)],
-                      begin: Alignment.topLeft,
-                      end: Alignment.bottomRight,
+      width: index == 0 ? 300 : 260,
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          borderRadius: BorderRadius.circular(18),
+          onTap: () {
+            if (videoId.isEmpty) {
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(
+                  content: Text('Video is not available right now.'),
+                ),
+              );
+              return;
+            }
+            Navigator.of(context).push(
+              MaterialPageRoute(
+                builder: (_) =>
+                    _RecentVideoPlayerScreen(videoId: videoId, title: title),
+              ),
+            );
+          },
+          child: Container(
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(18),
+              gradient: LinearGradient(
+                colors: [palette.first, palette.last],
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+              ),
+              boxShadow: const [
+                BoxShadow(
+                  color: Color(0x29000000),
+                  blurRadius: 12,
+                  offset: Offset(0, 6),
+                ),
+              ],
+            ),
+            child: Padding(
+              padding: const EdgeInsets.all(10),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  ClipRRect(
+                    borderRadius: BorderRadius.circular(12),
+                    child: Stack(
+                      children: [
+                        SizedBox(
+                          height: 145,
+                          width: double.infinity,
+                          child: thumbUrl.isNotEmpty
+                              ? Image.network(
+                                  thumbUrl,
+                                  fit: BoxFit.cover,
+                                  errorBuilder: (_, __, ___) =>
+                                      _LatestThumbFallback(colors: palette),
+                                )
+                              : _LatestThumbFallback(colors: palette),
+                        ),
+                        const Positioned.fill(
+                          child: DecoratedBox(
+                            decoration: BoxDecoration(
+                              gradient: LinearGradient(
+                                begin: Alignment.topCenter,
+                                end: Alignment.bottomCenter,
+                                colors: [Color(0x22000000), Color(0x8C000000)],
+                              ),
+                            ),
+                          ),
+                        ),
+                        Positioned(
+                          left: 8,
+                          top: 8,
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 8,
+                              vertical: 4,
+                            ),
+                            decoration: BoxDecoration(
+                              color: const Color(0xFFEA0000),
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                            child: const Text(
+                              'VIDEO',
+                              style: TextStyle(
+                                color: Colors.white,
+                                fontSize: 11,
+                                fontWeight: FontWeight.w700,
+                                letterSpacing: 0.5,
+                              ),
+                            ),
+                          ),
+                        ),
+                        const Positioned.fill(
+                          child: Center(
+                            child: CircleAvatar(
+                              radius: 24,
+                              backgroundColor: Color(0x7AFFFFFF),
+                              child: Icon(
+                                Icons.play_arrow_rounded,
+                                size: 34,
+                                color: Colors.white,
+                              ),
+                            ),
+                          ),
+                        ),
+                      ],
                     ),
                   ),
-                  child: Center(
-                    child: Icon(
-                      item.label == 'Video'
-                          ? Icons.play_circle_fill_rounded
-                          : Icons.newspaper_rounded,
+                  const SizedBox(height: 12),
+                  Text(
+                    title,
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
                       color: Colors.white,
-                      size: 42,
+                      fontSize: 15,
+                      fontWeight: FontWeight.w700,
+                      height: 1.25,
                     ),
                   ),
-                ),
-              ),
-              const SizedBox(height: 10),
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                decoration: BoxDecoration(
-                  color: item.label == 'Video'
-                      ? const Color(0xFFEA0000)
-                      : const Color(0xFF3B3B3B),
-                  borderRadius: BorderRadius.circular(6),
-                ),
-                child: Text(
-                  item.label,
-                  style: const TextStyle(
-                    color: Colors.white,
-                    fontWeight: FontWeight.w600,
+                  const Spacer(),
+                  Row(
+                    children: [
+                      const Icon(
+                        Icons.schedule_rounded,
+                        size: 14,
+                        color: Color(0xFFE7E7E7),
+                      ),
+                      const SizedBox(width: 6),
+                      Expanded(
+                        child: Text(
+                          publishedText,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(
+                            color: Color(0xFFE7E7E7),
+                            fontSize: 12,
+                            fontWeight: FontWeight.w500,
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 6),
+                      const Icon(
+                        Icons.open_in_full_rounded,
+                        size: 16,
+                        color: Color(0xFFE7E7E7),
+                      ),
+                    ],
                   ),
-                ),
+                ],
               ),
-              const SizedBox(height: 8),
-              Text(
-                item.title,
-                maxLines: 2,
-                overflow: TextOverflow.ellipsis,
-                style: const TextStyle(
-                  fontSize: 14,
-                  fontWeight: FontWeight.w600,
-                  height: 1.3,
-                ),
-              ),
-            ],
+            ),
           ),
         ),
       ),
@@ -1421,9 +1723,90 @@ class _LatestCard extends StatelessWidget {
   }
 }
 
-class _LatestItem {
-  const _LatestItem({required this.title, required this.label});
+class _LatestThumbFallback extends StatelessWidget {
+  const _LatestThumbFallback({required this.colors});
 
+  final List<Color> colors;
+
+  @override
+  Widget build(BuildContext context) {
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          colors: [colors.first, colors.last],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+      ),
+      child: const Center(
+        child: Icon(
+          Icons.ondemand_video_rounded,
+          size: 46,
+          color: Colors.white,
+        ),
+      ),
+    );
+  }
+}
+
+class _RecentVideoPlayerScreen extends StatefulWidget {
+  const _RecentVideoPlayerScreen({required this.videoId, required this.title});
+
+  final String videoId;
   final String title;
-  final String label;
+
+  @override
+  State<_RecentVideoPlayerScreen> createState() =>
+      _RecentVideoPlayerScreenState();
+}
+
+class _RecentVideoPlayerScreenState extends State<_RecentVideoPlayerScreen> {
+  late final YoutubePlayerController _controller;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = YoutubePlayerController.fromVideoId(
+      videoId: widget.videoId,
+      autoPlay: true,
+      params: const YoutubePlayerParams(
+        showControls: true,
+        showFullscreenButton: true,
+        enableJavaScript: true,
+        strictRelatedVideos: true,
+      ),
+    );
+  }
+
+  @override
+  void dispose() {
+    _controller.close();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: const Color(0xFF090B12),
+      appBar: AppBar(
+        backgroundColor: const Color(0xFF121827),
+        foregroundColor: Colors.white,
+        title: Text(
+          widget.title,
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+          style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
+        ),
+      ),
+      body: Center(
+        child: Padding(
+          padding: const EdgeInsets.all(14),
+          child: ClipRRect(
+            borderRadius: BorderRadius.circular(16),
+            child: YoutubePlayer(controller: _controller, aspectRatio: 16 / 9),
+          ),
+        ),
+      ),
+    );
+  }
 }
